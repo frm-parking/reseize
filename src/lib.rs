@@ -30,6 +30,7 @@ mod err;
 #[derive(Debug)]
 pub struct Capture {
 	url: Url,
+	timeout: Duration,
 	req: Arc<AtomicBool>,
 	snap_tx: Sender<Result<Snapshot>>,
 	snap_rx: Receiver<Result<Snapshot>>,
@@ -42,7 +43,7 @@ impl Capture {
 		let (snap_tx, snap_rx) = bounded(1);
 		let terminate = Arc::new(AtomicBool::new(false));
 
-		let this = Self { req, snap_tx, snap_rx, url, terminate };
+		let this = Self { req, timeout: Duration::from_secs(1), snap_tx, snap_rx, url, terminate };
 		this.spawn().await?;
 
 		Ok(this)
@@ -134,7 +135,12 @@ impl Capture {
 
 		self.req.store(true, Ordering::Relaxed);
 
-		match self.snap_rx.recv().await? {
+		match timeout(self.timeout, self.snap_rx.recv())
+			.await
+			.map_err(|_| Error::Timeout)
+			.and_then(|x| x.map_err(Into::into))
+			.and_then(identity)
+		{
 			Ok(snapshot) => {
 				#[cfg(feature = "tracing")]
 				tracing::info!("Snapshot taken");
