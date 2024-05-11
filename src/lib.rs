@@ -1,6 +1,9 @@
+mod auth;
+mod err;
+
 use std::{
 	convert::identity,
-	fmt::Debug,
+	fmt::{Debug, Display},
 	io::{Error as IoError, ErrorKind as IoErrorKind},
 	mem,
 	ops::Deref,
@@ -16,20 +19,22 @@ use async_channel::{bounded, Receiver, Sender};
 use bytes::Bytes;
 use futures_core::Stream;
 use futures_util::{stream::MapErr, TryStreamExt};
-use reqwest::{IntoUrl, Url};
+use reqwest::{Client, IntoUrl, Url};
 use tokio::{
 	io::{AsyncBufReadExt, AsyncReadExt},
 	time::timeout,
 };
 use tokio_util::io::StreamReader;
 
-pub use crate::err::{Error, Result};
-
-mod err;
+pub use crate::{
+	auth::Auth,
+	err::{Error, Result},
+};
 
 #[derive(Debug)]
 pub struct Capture {
 	url: Url,
+	auth: Auth,
 	timeout: Duration,
 	req: Arc<AtomicBool>,
 	snap_tx: Sender<Result<Snapshot>>,
@@ -38,12 +43,13 @@ pub struct Capture {
 }
 
 impl Capture {
-	pub async fn start(url: Url) -> Result<Self> {
+	pub async fn start(url: Url, auth: Auth<impl Display, impl Display>) -> Result<Self> {
 		let req = Arc::new(AtomicBool::new(false));
 		let (snap_tx, snap_rx) = bounded(1);
 		let terminate = Arc::new(AtomicBool::new(false));
 
-		let this = Self { req, timeout: Duration::from_secs(1), snap_tx, snap_rx, url, terminate };
+		let this =
+			Self { req, auth: auth.into_strings(), timeout: Duration::from_secs(1), snap_tx, snap_rx, url, terminate };
 		this.spawn().await?;
 
 		Ok(this)
@@ -51,6 +57,7 @@ impl Capture {
 
 	async fn connect(
 		url: impl IntoUrl,
+		auth: &Auth<String, String>,
 	) -> Result<
 		StreamReader<
 			MapErr<impl Stream<Item = reqwest::Result<Bytes>> + Sized, impl FnMut(reqwest::Error) -> std::io::Error>,
@@ -58,14 +65,15 @@ impl Capture {
 		>,
 	> {
 		let url = url.into_url()?;
-		let stream = reqwest::get(url.clone()).await?.bytes_stream().map_err(|err| IoError::new(IoErrorKind::Other, err));
+		let req = auth.apply(Client::new().get(url.clone()));
+		let stream = req.send().await?.bytes_stream().map_err(|err| IoError::new(IoErrorKind::Other, err));
 		#[cfg(feature = "tracing")]
 		tracing::info!(%url, "Connection established");
 		Ok(StreamReader::new(stream))
 	}
 
 	async fn spawn(&self) -> Result<()> {
-		let mut reader = Self::connect(self.url.clone()).await?;
+		let mut reader = Self::connect(self.url.clone(), &self.auth).await?;
 		let req = self.req.clone();
 		let terminate = self.terminate.clone();
 		let snap_tx = self.snap_tx.clone();
