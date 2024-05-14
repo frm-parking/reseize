@@ -81,7 +81,8 @@ impl Capture {
 		tokio::spawn(async move {
 			let mut jpeg = Vec::new();
 			let mut pair = vec![0; 2];
-			let mut header = vec![0; 63];
+			let mut boundary_sample = String::with_capacity(17);
+			let mut content_type = String::with_capacity(24);
 
 			loop {
 				if terminate.load(Ordering::Relaxed) {
@@ -89,7 +90,11 @@ impl Capture {
 				}
 
 				let result: Result<()> = timeout(Duration::from_secs(1), async {
-					reader.read_exact(&mut header).await?;
+					boundary_sample.clear();
+					reader.read_line(&mut boundary_sample).await?;
+					content_type.clear();
+					reader.read_line(&mut content_type).await?;
+					reader.consume(16);
 					let mut len_str = Vec::with_capacity(6);
 					reader.read_until(0xA, &mut len_str).await?;
 					let len = parse_len(&len_str)?;
