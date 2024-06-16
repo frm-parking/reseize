@@ -21,7 +21,7 @@ pub enum Error {
 
 	#[error("Timeout exceeded")]
 	Timeout,
-	
+
 	#[error("Failed to preconnect to stream. Status code: {0}")]
-	NonSuccessStatus(u16)
+	NonSuccessStatus(u16),
 }

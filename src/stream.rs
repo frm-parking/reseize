@@ -1,5 +1,7 @@
-use std::{io, mem, str};
-use std::fmt::{Debug, Formatter};
+use std::{
+	fmt::{Debug, Formatter},
+	io, mem, str,
+};
 
 use bytes::Bytes;
 use futures_core::Stream;
