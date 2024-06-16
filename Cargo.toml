@@ -1,6 +1,6 @@
 [package]
 name         = "reseize"
-version      = "0.1.0"
+version      = "0.2.0"
 edition      = "2021"
 authors      = ["Danil Karpenko <limpix31@gmail.com>"]
 license      = "MIT"
@@ -15,10 +15,23 @@ tokio         = { version = "1", features = ["rt-multi-thread", "full"] }
 tokio-util    = { version = "0.7" }
 reqwest       = { version = "0.12", default-features = false, features = ["stream"] }
 bytes         = { version = "1" }
-futures-util  = { version = "0" }
-futures-core  = { version = "0" }
-async-channel = { version = "2" }
-image         = { version = "0.25", optional = true }
+futures-util  = { version = "0.3" }
+futures-core  = { version = "0.3" }
+futures-lite  = { version = "2" }
+ticque        = { version = "0.1" }
 
 [features]
 rustls = ["reqwest/rustls-tls"]
+
+[lints.rust]
+[lints.clippy]
+pedantic                = { level = "warn", priority = -1 }
+cargo                   = { level = "warn", priority = -1 }
+all                     = { level = "warn", priority = -1 }
+unwrap_used             = "deny"
+expect_used             = "deny"
+must-use-candidate      = "allow"
+missing_errors_doc      = "allow"
+module_name_repetitions = "allow"
+cargo_common_metadata   = "allow"
+multiple_crate_versions = "allow"

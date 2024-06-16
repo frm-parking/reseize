@@ -1,30 +1,55 @@
-use std::fmt::Display;
-
 use reqwest::RequestBuilder;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub enum Auth<U = String, P = String> {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum AuthMethod {
 	#[default]
 	None,
-	Basic(U, P),
+	Basic(String, String),
 }
 
-impl<U, P> Auth<U, P>
-where
-	U: Display,
-	P: Display,
-{
+impl AuthMethod {
 	pub(crate) fn apply(&self, rb: RequestBuilder) -> RequestBuilder {
 		match self {
-			Auth::None => rb,
-			Auth::Basic(username, password) => rb.basic_auth(username, Some(password)),
+			Self::None => rb,
+			Self::Basic(username, password) => rb.basic_auth(username, Some(password)),
 		}
 	}
+}
 
-	pub(crate) fn into_strings(self) -> Auth<String, String> {
+trait Sealed {}
+impl Sealed for AuthMethod {}
+impl<T0, T1> Sealed for BasicAuth<T0, T1> {}
+impl<T> Sealed for Option<T> {}
+
+#[allow(private_bounds)]
+pub trait IntoAuthMethod: Sealed {
+	fn into_auth_method(self) -> AuthMethod;
+}
+
+impl IntoAuthMethod for AuthMethod {
+	fn into_auth_method(self) -> AuthMethod {
+		self
+	}
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BasicAuth<T0, T1>(T0, T1);
+
+impl<T0, T1> IntoAuthMethod for BasicAuth<T0, T1>
+where
+	T0: Into<String>,
+	T1: Into<String>,
+{
+	fn into_auth_method(self) -> AuthMethod {
+		AuthMethod::Basic(self.0.into(), self.1.into())
+	}
+}
+
+impl<T: IntoAuthMethod> IntoAuthMethod for Option<T> {
+	fn into_auth_method(self) -> AuthMethod {
 		match self {
-			Auth::None => Auth::None,
-			Auth::Basic(a, b) => Auth::Basic(a.to_string(), b.to_string()),
+			Some(it) => it.into_auth_method(),
+			None => AuthMethod::None,
 		}
 	}
 }
