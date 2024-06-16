@@ -17,8 +17,11 @@ pub enum Error {
 	ParseInt(#[from] std::num::ParseIntError),
 
 	#[error(transparent)]
-	Recv(#[from] async_channel::RecvError),
+	Request(#[from] ticque::RequestError),
 
 	#[error("Timeout exceeded")]
 	Timeout,
+
+	#[error("Failed to preconnect to stream. Status code: {0}")]
+	NonSuccessStatus(u16),
 }
